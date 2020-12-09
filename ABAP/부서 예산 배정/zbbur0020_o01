@@ -1,0 +1,91 @@
+*&---------------------------------------------------------------------*
+*& Include          ZBBUR0020_O01
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Module STATUS_0100 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0100 OUTPUT.
+ SET PF-STATUS 'S0100'.
+ SET TITLEBAR 'T0100'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module CREATE_CONTAINER OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+*  ALV 화면 구성 (컨테이너, 그리드)
+MODULE create_container OUTPUT.
+IF G_CONTAINER IS INITIAL.
+
+  CREATE OBJECT G_CONTAINER
+    EXPORTING
+      CONTAINER_NAME = 'CONT1'.
+
+  CREATE OBJECT G_GRID1
+    EXPORTING
+      I_PARENT = G_CONTAINER.
+
+  PERFORM MAKE_FIELDCAT3.
+  PERFORM LAYO.
+  PERFORM SORT.
+  PERFORM EXCLUDE_OF_TOOLBAR_BUTTON.
+
+
+*이벤트 등록
+  CREATE OBJECT G_APPLI. "인스턴스 생성
+  SET HANDLER G_APPLI->HANDLE_TOOLBAR FOR G_GRID1.
+  SET HANDLER G_APPLI->HANDLER_USER_COMMAND FOR G_GRID1.
+
+
+*ALV 입력 여부( 1: 입력 , 0: 조회)
+  CALL METHOD G_GRID1->SET_READY_FOR_INPUT
+    EXPORTING
+      I_READY_FOR_INPUT = 1.
+
+  CALL METHOD G_GRID1->SET_TABLE_FOR_FIRST_DISPLAY
+    EXPORTING
+*     i_buffer_active      =
+*     i_bypassing_buffer   =
+*     i_consistency_check  =
+*     i_structure_name     =
+*     is_variant           =
+*     i_save               =
+*     i_default            = 'X'
+      is_layout            = gs_layo
+*     is_print             =
+*     it_special_groups    =
+      it_toolbar_excluding = gt_functions
+*     it_hyperlink         =
+*     it_alv_graphics      =
+*     it_except_qinfo      =
+*     ir_salv_adapter      =
+    CHANGING
+      it_outtab            = gt_tab
+      it_fieldcatalog      = gt_fieldcat
+      it_sort              = gt_sort
+*     it_filter            =
+*  EXCEPTIONS
+*     invalid_parameter_combination = 1
+*     program_error        = 2
+*     too_many_lines       = 3
+*     others               = 4
+    .
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+ELSE.
+
+DATA : GS_STBL TYPE LVC_S_STBL.
+ GS_STBL-ROW = 'X'.
+ GS_STBL-COL = 'X'.
+ CALL METHOD G_GRID1->REFRESH_TABLE_DISPLAY
+ EXPORTING
+   IS_STABLE = GS_STBL.
+ ENDIF.
+ENDMODULE.
+
+----------------------------------------------------------------------------------
+Extracted by Direct Download Enteprise version 1.0 - E.G.Mellodew. 1998-2003 UK.
