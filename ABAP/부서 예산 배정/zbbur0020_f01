@@ -1,0 +1,1026 @@
+*&---------------------------------------------------------------------*
+*& Include          ZBBUR0020_F01
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Form INIT
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM init .
+
+  IF ra1 = 'X'.
+    CLEAR g_functionkey.
+    g_functionkey-icon_id = icon_xls.
+    g_functionkey-icon_text = '템플릿 다운로드'.
+    g_functionkey-text = '템플릿 다운로드'.
+    sscrfields-functxt_01 = g_functionkey.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form GET_FILEPATH
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM get_filepath .
+  CALL METHOD cl_gui_frontend_services=>file_open_dialog  "클래스명 => METHOD
+    EXPORTING
+*     window_title      =         "타이틀의 제목
+*     default_extension =        "파일의 확장자
+      default_filename  = space
+      file_filter       = c_filter                    "파일 형식 제어(필터링)
+*     with_encoding     =
+      initial_directory = 'C:'
+*     multiselection    =
+    CHANGING
+      file_table        = gt_file          "인터널 테이블로 값 받기
+      rc                = gv_rc
+*     user_action       =
+*     file_encoding     =
+*    EXCEPTIONS
+*     file_open_dialog_failed = 1
+*     cntl_error        = 2
+*     error_no_gui      = 3
+*     not_supported_by_gui    = 4
+*     others            = 5
+    .
+
+  CLEAR p_file.
+  READ TABLE gt_file INTO p_file INDEX 1.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form UPLOAD_FILE
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM upload_file .
+  "엑셀 업로드 함수 호출하기!!!*******
+  CALL FUNCTION 'ALSM_EXCEL_TO_INTERNAL_TABLE'
+    EXPORTING
+      filename    = p_file
+      i_begin_col = 1
+      i_begin_row = 2        "두번째 줄의 첫번째 COLUMN부터 읽어옴
+      i_end_col   = 8
+      i_end_row   = 10000
+    TABLES
+      intern      = gt_excel
+*  EXCEPTIONS
+*     INCONSISTENT_PARAMETERS       = 1
+*     UPLOAD_OLE  = 2
+*     OTHERS      = 3
+    .
+  IF gt_excel IS NOT INITIAL.
+    CLEAR gt_tab.
+    LOOP AT gt_excel INTO gs_excel.
+      UNASSIGN <fs>.                    "UNASSIGN -> FS에 할당된 걸 풀어줌 (할당해제)
+      "구조체 GS_TAB에 필드 <FS> 할당하기
+      ASSIGN COMPONENT gs_excel-col OF STRUCTURE gs_tab TO <fs>.
+      "LOOP을 돌 때마다 필드 순서에 따라 <FS>가 서로 다른 값을 가지게 됨 (동적지정 가능)
+      IF <fs> IS ASSIGNED.        "<FS>가 할당 상태일 시 IF 로직 수행
+        <fs> = gs_excel-value.
+      ENDIF.
+
+      AT END OF row.          " GS_EXCEL의 ROW 값이 달라지는 시점마다 AT 구문 실행
+        gs_tab-rembud = gs_tab-deppr.
+        GS_TAB-ACCBUD = GS_TAB-DEPPR.
+        APPEND gs_tab TO gt_tab.
+        CLEAR gs_tab.           "쓸모없는 데이터 제거
+      ENDAT.
+    ENDLOOP.
+
+        CALL SCREEN '0100'.
+
+*    MODIFY ZBBUT0030 FROM TABLE gt_tab.
+
+  ENDIF.
+
+*  IF sy-subrc = 0.
+*    MESSAGE s000 WITH '처리되었습니다.'.
+*  ELSE.
+*    MESSAGE s001 WITH '처리 도중 오류가 발생했습니다.' DISPLAY LIKE 'E'.
+*  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SET_FKEY
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM set_fkey .
+  DATA : lv_rc           TYPE i.
+  DATA : lv_filename     TYPE localfile.
+  DATA : ls_wwwdata_item TYPE wwwdatatab.
+
+  CASE sscrfields-ucomm.
+    WHEN 'FC01'.
+      SELECT SINGLE * FROM wwwdata
+        INTO CORRESPONDING FIELDS OF ls_wwwdata_item
+        WHERE objid = 'ZBBUZT0020'.    "<--SMW0 OBJECT 이름
+
+      CALL FUNCTION 'DOWNLOAD_WEB_OBJECT'
+        EXPORTING
+          key = ls_wwwdata_item.
+
+    WHEN 'FC02'.
+      PERFORM get_data.
+      CALL SCREEN 0100.
+
+    WHEN 'RA'.
+      IF ra2 = 'X'.
+        ls_exclude-fcode = 'FC01'.
+      ELSE.
+        CLEAR : ls_exclude, lt_exclude.
+        PERFORM init.
+      ENDIF.
+
+      IF ls_exclude IS NOT INITIAL.
+        APPEND ls_exclude TO lt_exclude.
+      ENDIF.
+
+      CALL FUNCTION 'RS_SET_SELSCREEN_STATUS'
+        EXPORTING
+          p_status  = '%_00'
+*         P_PROGRAM = ' '
+        TABLES
+          p_exclude = lt_exclude.
+
+    WHEN OTHERS.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SCREEN_MODIFY
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM screen_modify .
+  IF ra1 = 'X'.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'IN1'.
+        screen-input = '1'.
+        screen-invisible = '0'.
+        MODIFY SCREEN.
+      ENDIF.
+
+      IF screen-group1 = 'IN2'.
+        screen-input = '0'.
+        screen-invisible = '1'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : ls_exclude, lt_exclude.
+    PERFORM init.
+
+  ELSEIF ra2 = 'X'.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'IN1'.
+        screen-input = '0'.
+        screen-invisible = '1'.
+        MODIFY SCREEN.
+      ENDIF.
+
+      IF screen-group1 = 'IN2'.
+        screen-input = '1'.
+        screen-invisible = '0'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+    ls_exclude-fcode = 'FC01'.
+
+  ENDIF.
+
+  IF ls_exclude IS NOT INITIAL.
+    APPEND ls_exclude TO lt_exclude.
+  ENDIF.
+
+  CALL FUNCTION 'RS_SET_SELSCREEN_STATUS'
+    EXPORTING
+      p_status  = '%_00'
+*     P_PROGRAM = ' '
+    TABLES
+      p_exclude = lt_exclude.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form GET_DATA
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM get_data .
+  CLEAR : GT_TAB, GT_OTAB.
+
+  DATA : LS_OLDDATE LIKE P_DATE-LOW,
+         LS_NEWDATE LIKE P_DATE-LOW.
+
+  LS_OLDDATE = P_DATE-LOW.
+
+*  입력칸 중 하나라도 공백이라면 데이터 입력 X -> 바로 ALV 화면으로 
+IF P_CODE IS INITIAL
+  OR P_BUDYM IS INITIAL
+  OR P_DATE IS INITIAL
+  OR P_PRICE IS INITIAL
+  OR P_EMPNO IS INITIAL.
+
+  SELECT * FROM ZBBUT0030
+    INTO CORRESPONDING FIELDS OF TABLE GT_TAB.
+
+ELSE.
+
+* 입력칸이 다 채워져 있다면 데이터 입력 
+-> 1년 단위 예산 입력하고 실행 버튼 클릭하면 12달(ex)200105. 200205 ...)로 쪼개져서 CBO테이블로 반영 
+ GS_TAB-GCODE = P_CODE-LOW.
+ GS_TAB-EMSEQ = 01.
+ GS_TAB-BUDYM = P_BUDYM-LOW.
+ GS_TAB-DEPDY = LS_OLDDATE.
+ GS_TAB-DEPPR = P_PRICE-LOW / 12.
+ GS_TAB-EMPNO = P_EMPNO-LOW.
+ GS_TAB-STATUS = 2.
+ GS_TAB-REMBUD = P_PRICE-LOW / 12.
+ GS_TAB-ACCBUD = P_PRICE-LOW / 12.
+
+ APPEND GS_TAB TO GT_TAB.
+
+* 위에서 입력한 데이터값을 가지고 11번을 돌아서 금액, 날짜 데이터를 생성 
+ DO 11 TIMES.
+
+  CALL FUNCTION 'MONTH_PLUS_DETERMINE'
+     EXPORTING
+         months        = '+1'
+         olddate       = LS_OLDDATE
+      IMPORTING
+          NEWDATE       = LS_NEWDATE   .
+  LS_OLDDATE = LS_NEWDATE.
+
+ GS_TAB-GCODE = P_CODE-LOW.
+ GS_TAB-EMSEQ = GS_TAB-EMSEQ + 1.
+ GS_TAB-BUDYM = GS_TAB-BUDYM + 1.
+ GS_TAB-DEPDY = LS_OLDDATE.
+ GS_TAB-DEPPR = P_PRICE-LOW / 12.
+ GS_TAB-EMPNO = P_EMPNO-LOW.
+ GS_TAB-STATUS = 2.
+ GS_TAB-REMBUD = P_PRICE-LOW / 12.
+ GS_TAB-ACCBUD = P_PRICE-LOW / 12.
+
+ APPEND GS_TAB TO GT_TAB.
+
+ ENDDO.
+
+ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form GET_GNAME
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+* 부서코드에 대한 F4(탐색도움말) 
+FORM get_gname USING p_code p_ctxt.
+
+  DATA : selectfield  LIKE  help_info-fieldname,
+         it_fields    LIKE  help_value OCCURS 1 WITH HEADER LINE,
+         select_value LIKE  help_info-fldvalue,
+         ld_tabix     LIKE  sy-tabix.
+
+  DATA: scr_fields LIKE dynpread OCCURS 0 WITH HEADER LINE.
+
+  CLEAR: selectfield,  it_fields,  select_value,
+         ld_tabix, scr_fields.
+  REFRESH: it_fields, scr_fields.
+*&-----------------------------------
+*** F4 화면에 띄울 itab 생성
+  DATA : BEGIN OF it_f4code OCCURS 0,
+           gcode LIKE zbmdt0020-gcode,
+*           auemp LIKE zbmdt0020-auemp,
+*           cacct LIKE zbmdt0020-cacct,
+           gname LIKE zbmdt0020-gname,
+*           sdate LIKE zbmdt0020-sdate,
+*           edate LIKE zbmdt0020-edate,
+*           pyemp LIKE zbmdt0020-pyemp,
+         END OF it_f4code.
+*&-----------------------------------
+*** F4 화면에 띄울 값 입력
+  SELECT *
+    FROM zbmdt0020
+    APPENDING CORRESPONDING FIELDS OF TABLE it_f4code.
+
+  SORT it_f4code[] BY gcode.
+*** 없을 경우 메시지 출력
+  IF sy-dbcnt EQ 0.
+    MESSAGE s000 WITH '데이터가 없습니다.'. " 성공
+*    MESSAGE W000 WITH '데이터가 없습니다.'. " 경고
+*    MESSAGE i000 WITH '데이터가 없습니다.'. " 정보
+*    MESSAGE E000 WITH '데이터가 없습니다.'. " 에러 (종료)
+*    MESSAGE A000 WITH '데이터가 없습니다.'. "
+    EXIT.
+  ENDIF.
+*&-----------------------------------
+*** F4 화면에 띄울 필드 생성
+  it_fields-tabname    = 'ZBMDT0020'.
+  it_fields-fieldname  = 'GCODE'.
+  it_fields-selectflag = 'X'.        " 선택한 값이 입력 값으로 들어가게 해주는 필드
+  APPEND it_fields.
+
+*  it_fields-tabname    = 'ZBMDT0020'.
+*  it_fields-fieldname  = 'AUEMP'.
+*  it_fields-selectflag = 'X'.        " 선택한 값이 입력 값으로 들어가게 해주는 필드
+*  APPEND it_fields.
+*
+*  it_fields-tabname    = 'ZBMDT0020'.
+*  it_fields-fieldname  = 'CACCT'.
+*  it_fields-selectflag = 'X'.        " 선택한 값이 입력 값으로 들어가게 해주는 필드
+*  APPEND it_fields.
+
+  it_fields-tabname    = 'ZBMDT0020'.
+  it_fields-fieldname  = 'GNAME'.
+  it_fields-selectflag = 'X'.        " 선택한 값이 입력 값으로 들어가게 해주는 필드
+  APPEND it_fields.
+
+*  it_fields-tabname    = 'ZBMDT0020'.
+*  it_fields-fieldname  = 'SDATE'.
+*  it_fields-selectflag = 'X'.        " 선택한 값이 입력 값으로 들어가게 해주는 필드
+*  APPEND it_fields.
+*
+*  it_fields-tabname    = 'ZBMDT0020'.
+*  it_fields-fieldname  = 'EDATE'.
+*  it_fields-selectflag = 'X'.        " 선택한 값이 입력 값으로 들어가게 해주는 필드
+*  APPEND it_fields.
+*
+*  it_fields-tabname    = 'ZBMDT0020'.
+*  it_fields-fieldname  = 'PYEMP'.
+*  it_fields-selectflag = 'X'.        " 선택한 값이 입력 값으로 들어가게 해주는 필드
+*  APPEND it_fields.
+
+  CALL FUNCTION 'HELP_VALUES_GET_NO_DD_NAME' " 파라미터로 들어감
+    EXPORTING
+      selectfield                  = selectfield  " 선택된 필드의 값
+    IMPORTING
+      ind                          = ld_tabix     " INDEX : 몇번째 데이터인지
+      select_value                 = select_value " SELECT FLAG의 값이 들어옴
+    TABLES
+      fields                       = it_fields    " 필드 갯수만큼 있어야 함
+      full_table                   = it_f4code     "
+    EXCEPTIONS
+      full_table_empty             = 1
+      no_tablestructure_given      = 2
+      no_tablefields_in_dictionary = 3
+      more_then_one_selectfield    = 4
+      no_selectfield               = 5
+      OTHERS                       = 6.
+
+  CHECK NOT ld_tabix IS INITIAL.
+  READ TABLE it_f4code INDEX ld_tabix.
+  p_code = select_value.
+
+  scr_fields-fieldname  = p_code.
+  scr_fields-fieldvalue = it_f4code-gcode.
+  APPEND scr_fields.
+
+  scr_fields-fieldname  = 'P_CODE-LOW'.
+  scr_fields-fieldvalue = it_f4code-gcode.
+  APPEND scr_fields.
+
+  CALL FUNCTION 'DYNP_VALUES_UPDATE'
+    EXPORTING
+      dyname               = sy-cprog
+      dynumb               = sy-dynnr
+    TABLES
+      dynpfields           = scr_fields
+    EXCEPTIONS
+      invalid_abapworkarea = 1
+      invalid_dynprofield  = 2
+      invalid_dynproname   = 3
+      invalid_dynpronummer = 4
+      invalid_request      = 5
+      no_fielddescription  = 6
+      undefind_error       = 7
+      OTHERS               = 8.
+
+**** 2020.10.15 이전 코드
+*  DATA : BEGIN OF LS_NAME,
+*              GCODE TYPE ZBMDT0020-GCODE,
+*              GNAME TYPE ZBMDT0020-GNAME,
+*              END OF LS_NAME,
+*              LT_NAME LIKE TABLE OF LS_NAME.
+*
+*      CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+*        EXPORTING
+**         DDIC_STRUCTURE         = ' '
+*         RETFIELD               = 'GCODE'
+*         DYNPPROG               = SY-REPID
+*         DYNPNR                 = SY-DYNNR
+*         DYNPROFIELD            = 'P_CODE'
+*         WINDOW_TITLE       = '부서 선택'
+*         VALUE_ORG              = 'S'
+*        TABLES
+*          VALUE_TAB              = GT_TAB.
+*      IF sy-subrc <> 0.
+**       Implement suitable error handling here
+*      ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SAVE
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM save .
+DATA : LS_SAVE.
+CLEAR : LS_SAVE.
+
+CALL FUNCTION 'POPUP_TO_CONFIRM'
+  EXPORTING
+   TITLEBAR                    = '저장'
+*   DIAGNOSE_OBJECT             = ' '
+   TEXT_QUESTION               = TEXT-008
+   TEXT_BUTTON_1               = 'YES'
+*   ICON_BUTTON_1               = ' '
+   TEXT_BUTTON_2               = 'NO'
+*   ICON_BUTTON_2               = ' '
+*   DEFAULT_BUTTON              = '1'
+*   DISPLAY_CANCEL_BUTTON       = 'X'
+*   USERDEFINED_F1_HELP         = ' '
+*   START_COLUMN                = 25
+*   START_ROW                   = 6
+*   POPUP_TYPE                  =
+*   IV_QUICKINFO_BUTTON_1       = ' '
+*   IV_QUICKINFO_BUTTON_2       = ' '
+ IMPORTING
+   ANSWER                      = LS_SAVE
+* TABLES
+*   PARAMETER                   =
+* EXCEPTIONS
+*   TEXT_NOT_FOUND              = 1
+*   OTHERS                      = 2
+          .
+IF sy-subrc <> 0.
+  MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.
+
+IF LS_SAVE = '1'.   "저장됨
+  PERFORM DO_SAVE.
+ELSE.
+  MESSAGE S000 DISPLAY LIKE 'E' WITH '데이터를 확인하세요.'.
+ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form REGISTER
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM register .
+  DATA : LS_CELL   TYPE LVC_S_STYL.
+  CLEAR GS_TAB.
+
+  SORT GT_FIELDCAT BY FIELDNAME.
+  LOOP AT GT_FIELDCAT INTO GS_FIELDCAT.
+    LS_CELL-FIELDNAME      = GS_FIELDCAT-FIELDNAME.
+    LS_CELL-STYLE      = CL_GUI_ALV_GRID=>MC_STYLE_ENABLED.
+    APPEND LS_CELL TO GS_TAB-CELL.
+  ENDLOOP.
+  APPEND GS_TAB TO GT_TAB.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form EDIT
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM edit .
+  DATA : lt_rows TYPE lvc_t_row.  " ALV 제어: 테이블행
+  DATA: ls_rows TYPE lvc_s_row.
+  DATA: lt_tab LIKE ZBBUT0030 OCCURS 0 WITH HEADER LINE.
+  DATA: ls_wa     LIKE ZBBUT0030,
+        ls_row_no TYPE lvc_s_roid,
+        lv_cnt    TYPE i.
+  DATA : ls_cell   TYPE lvc_s_styl.
+
+  CALL METHOD g_grid1->get_selected_rows
+    IMPORTING
+      et_index_rows = lt_rows.
+
+  DESCRIBE TABLE lt_rows LINES sy-tfill.
+
+  IF sy-tfill EQ 0.
+    MESSAGE s000 WITH '항목을 선택하세요.' DISPLAY LIKE 'E'.
+    EXIT.
+  ELSE.
+    DATA: LS_ZBBUT0030 TYPE ZBBUT0030.
+    SORT gt_fieldcat BY fieldname.
+
+    LOOP AT lt_rows INTO ls_rows.
+      READ TABLE gt_tab INTO gs_tab INDEX ls_rows-index.
+      CLEAR GS_TAB-CELL.
+
+      LOOP AT gt_fieldcat INTO gs_fieldcat.
+        ls_cell-fieldname      = gs_fieldcat-fieldname.
+        IF gs_fieldcat-fieldname EQ 'GCODE'.
+          ls_cell-style      = cl_gui_alv_grid=>mc_style_disabled.
+        ELSE.
+          ls_cell-style      = cl_gui_alv_grid=>mc_style_enabled.
+        ENDIF.
+        APPEND ls_cell TO GS_TAB-CELL.
+      ENDLOOP.
+
+      MODIFY gt_tab FROM gs_tab INDEX ls_rows-index TRANSPORTING CELL.
+      CLEAR gs_tab.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form DELETE
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM delete .
+  DATA : LS_SAVE.
+  CLEAR : LS_SAVE.
+  CALL FUNCTION 'POPUP_TO_CONFIRM'
+    EXPORTING
+      titlebar      = '저장'
+*     DIAGNOSE_OBJECT = ' '
+      text_question = TEXT-007
+      text_button_1 = 'Yes'
+*     icon_button_1 = ' '
+      text_button_2 = 'No'
+*     ICON_BUTTON_2 = ' '
+*     DEFAULT_BUTTON = '1'
+*     DISPLAY_CANCEL_BUTTON = 'X'
+*     USERDEFINED_F1_HELP = ' '
+*     START_COLUMN  = 25
+*     START_ROW     = 6
+*     POPUP_TYPE    =
+*     IV_QUICKINFO_BUTTON_1 = ' '
+*     IV_QUICKINFO_BUTTON_2 = ' '
+    IMPORTING
+      answer        = LS_SAVE
+* TABLES
+*     PARAMETER     =
+* EXCEPTIONS
+*     TEXT_NOT_FOUND = 1
+*     OTHERS        = 2
+    .
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  IF LS_SAVE EQ '1'. " 저장
+    PERFORM DO_DELETE.
+  ELSE.
+    MESSAGE s000 DISPLAY LIKE 'E' WITH '다시 확인하고 삭제하세요.'.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form MAKE_FIELDCAT3
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+* ALV 화면에 뿌려질 필드에 
+FORM make_fieldcat3 .
+  REFRESH gt_fieldcat. CLEAR gt_fieldcat.
+
+  PERFORM fill_field_catalogs USING:
+'S'   'FIELDNAME'       'GCODE',
+''    'JUST'            'C',
+''    'KEY'             'X',
+'E'   'COLTEXT'         '부서 코드',
+
+*'S'   'FIELDNAME'       'GNAME',
+*''    'JUST'            'C',
+*'E'   'COLTEXT'         '부서 이름',
+
+'S'   'FIELDNAME'       'EMSEQ',
+''    'JUST'            'C',
+'E'   'COLTEXT'         '순번',
+
+'S'   'FIELDNAME'       'BUDYM',
+''    'JUST'            'C',
+''    'OUTPUTLEN'            '6',
+'E'   'COLTEXT'         '예산 배정년월',
+
+'S'   'FIELDNAME'       'DEPDY',
+''    'JUST'            'C',
+''    'OUTPUTLEN'            '11',
+'E'   'COLTEXT'         '예산 배정일자',
+
+'S'   'FIELDNAME'       'DEPPR',
+''    'JUST'            'C',
+''    'OUTPUTLEN'            '11',
+'E'   'COLTEXT'         '배정 금액',
+
+'S'   'FIELDNAME'       'EMPNO',
+''    'JUST'            'C',
+''    'OUTPUTLEN'            '11',
+'E'   'COLTEXT'         '담당자 사원번호',
+
+'S'   'FIELDNAME'       'REMBUD',
+''    'JUST'            'C',
+''    'OUTPUTLEN'            '11',
+'E'   'COLTEXT'         '잔여 예산'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form LAYO
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM layo .
+  gs_layo-zebra = 'X'.
+  gs_layo-sel_mode = 'A'.
+  gs_layo-cwidth_opt = 'X'.
+  gs_layo-stylefname  = 'CELL'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SORT
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM sort .
+  gs_sort-spos = 1.
+  gs_sort-fieldname = 'GCODE'.
+  gs_sort-up = 'X'.
+  APPEND gs_sort TO gt_sort. CLEAR gs_sort.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form EXCLUDE_OF_TOOLBAR_BUTTON
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM exclude_of_toolbar_button .
+  REFRESH : gt_functions.
+  CLEAR   : gt_functions.
+
+  PERFORM add_exclude_toolbar_button
+         TABLES gt_functions
+*        USING : cl_gui_alv_grid=>mc_fc_excl_all, " ** 툴바 모두제거 **
+         USING : cl_gui_alv_grid=>mc_fc_loc_undo, " 실행취소&LOCAL&UNDO
+*                 cl_gui_alv_grid=>mc_fc_auf,      " 소계확장 &AUF
+*                 cl_gui_alv_grid=>mc_fc_average,  " &AVERAGE
+*                 cl_gui_alv_grid=>mc_fc_back_classic,
+*                 cl_gui_alv_grid=>mc_fc_call_abc, " &ABC
+*                 cl_gui_alv_grid=>mc_fc_call_chain,
+*                 cl_gui_alv_grid=>mc_fc_call_crbatch,
+*                 cl_gui_alv_grid=>mc_fc_call_crweb,
+*                 cl_gui_alv_grid=>mc_fc_call_lineitems,
+*                 cl_gui_alv_grid=>mc_fc_call_master_data,
+*                 cl_gui_alv_grid=>mc_fc_call_more,
+*                 cl_gui_alv_grid=>mc_fc_call_report,
+*                 cl_gui_alv_grid=>mc_fc_call_xint,
+*                 cl_gui_alv_grid=>mc_fc_call_xxl,
+**                 cl_gui_alv_grid=>mc_fc_col_invisible,
+**                 cl_gui_alv_grid=>mc_fc_col_optimize,
+*                 cl_gui_alv_grid=>mc_fc_current_variant,
+*                 cl_gui_alv_grid=>mc_fc_data_save,
+**                 cl_gui_alv_grid=>mc_fc_delete_filter,
+**                 cl_gui_alv_grid=>mc_fc_deselect_all,
+*                 cl_gui_alv_grid=>mc_fc_detail,
+*                 cl_gui_alv_grid=>mc_fc_expcrdata,
+*                 cl_gui_alv_grid=>mc_fc_expcrdesig,
+*                 cl_gui_alv_grid=>mc_fc_expcrtempl,
+*                 cl_gui_alv_grid=>mc_fc_html,
+*                 cl_gui_alv_grid=>mc_fc_url_copy_to_clipboard,
+*                 cl_gui_alv_grid=>mc_fc_expmdb,
+*                 cl_gui_alv_grid=>mc_fc_extend,
+*                 cl_gui_alv_grid=>mc_fc_f4,
+**                 cl_gui_alv_grid=>mc_fc_filter,
+**                 cl_gui_alv_grid=>mc_fc_find,
+*                 cl_gui_alv_grid=>mc_fc_fix_columns,
+*                 cl_gui_alv_grid=>mc_fc_graph,
+*                 cl_gui_alv_grid=>mc_fc_help,
+*                 cl_gui_alv_grid=>mc_fc_info,              " !: INFO
+*                 cl_gui_alv_grid=>mc_fc_load_variant,
+                 cl_gui_alv_grid=>mc_fc_loc_copy,          " 행 카피.
+                 cl_gui_alv_grid=>mc_fc_html,
+                 cl_gui_alv_grid=>mc_fc_loc_copy_row,      " 행 카피.
+                 cl_gui_alv_grid=>mc_fc_loc_cut,           " 가위.
+                 cl_gui_alv_grid=>mc_fc_loc_delete_row,    " 행삭제.
+                 cl_gui_alv_grid=>mc_fc_loc_insert_row,    " 행삽입.
+                 cl_gui_alv_grid=>mc_fc_loc_move_row,
+                 cl_gui_alv_grid=>mc_fc_loc_append_row,    " 라인생성.
+                 cl_gui_alv_grid=>mc_fc_loc_paste,         " 겹쳐쓰기.
+                 cl_gui_alv_grid=>mc_fc_loc_paste_new_row, " 겹쳐쓰기.
+*                 cl_gui_alv_grid=>mc_fc_maintain_variant,
+*                 cl_gui_alv_grid=>mc_fc_maximum,
+**                 CL_GUI_ALV_GRID=>MC_FC_MINIMUM,
+**                 CL_GUI_ALV_GRID=>MC_FC_PC_FILE,
+*                 cl_gui_alv_grid=>mc_fc_print,
+*                 cl_gui_alv_grid=>mc_fc_print_back,
+*                 cl_gui_alv_grid=>mc_fc_print_prev,
+**                 cl_gui_alv_grid=>mc_fc_refresh,           " REFRESH
+*                 cl_gui_alv_grid=>mc_fc_reprep,
+*                 cl_gui_alv_grid=>mc_fc_save_variant,
+*                 cl_gui_alv_grid=>mc_fc_select_all,
+*                 cl_gui_alv_grid=>mc_fc_send,
+*                 cl_gui_alv_grid=>mc_fc_separator,
+*                 cl_gui_alv_grid=>mc_fc_sort,
+**                 cl_gui_alv_grid=>mc_fc_sort_asc,
+**                 cl_gui_alv_grid=>mc_fc_sort_dsc,
+**                 CL_GUI_ALV_GRID=>MC_FC_SUM,
+**                 CL_GUI_ALV_GRID=>MC_FC_SUBTOT,
+**                 CL_GUI_ALV_GRID=>MC_MB_SUM,
+**                 CL_GUI_ALV_GRID=>MC_FC_SUM,
+**                 CL_GUI_ALV_GRID=>MC_MB_EXPORT,            "EXPORT
+*                 cl_gui_alv_grid=>mc_fc_to_office,
+*                 cl_gui_alv_grid=>mc_fc_to_rep_tree,
+*                 cl_gui_alv_grid=>mc_fc_unfix_columns,
+*                 cl_gui_alv_grid=>mc_fc_views,
+*                 cl_gui_alv_grid=>mc_fc_view_crystal,
+**                 CL_GUI_ALV_GRID=>MC_FC_VIEW_EXCEL,
+*                 cl_gui_alv_grid=>mc_fc_view_grid,
+                 cl_gui_alv_grid=>mc_fc_word_processor.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form ADD_EXCLUDE_TOOLBAR_BUTTON
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*      -->P_GT_FUNCTIONS  text
+*      -->P_CL_GUI_ALV_GRID=>MC_FC_LOC_UND  text
+*&---------------------------------------------------------------------*
+FORM add_exclude_toolbar_button  TABLES  LT_TABLE
+                                                         USING  L_VALUE.
+
+DATA : L_EXCLUDE TYPE UI_FUNC.
+
+L_EXCLUDE = L_VALUE.
+APPEND L_EXCLUDE TO LT_TABLE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FILL_FIELD_CATALOGS
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*      -->P_       text
+*      -->P_       text
+*      -->P_       text
+*&---------------------------------------------------------------------*
+FORM fill_field_catalogs  USING  P_GUBUN P_FNAME P_VALUE.
+
+DATA L_FNAME(40) TYPE C.
+FIELD-SYMBOLS <FS> TYPE ANY.
+
+IF P_GUBUN = 'S'.
+  CLEAR GS_FIELDCAT.
+ENDIF.
+
+CONCATENATE 'GS_FIELDCAT-' P_FNAME INTO L_FNAME.
+
+  ASSIGN (L_FNAME) TO <FS>.
+  IF <FS> IS ASSIGNED.
+    <FS> = P_VALUE.
+  ENDIF.
+
+  IF p_gubun EQ 'E'.
+    gs_pos = gs_pos + 1.
+    gs_fieldcat-col_pos = gs_pos.
+    APPEND gs_fieldcat TO gt_fieldcat.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form TOOLBAR_0100
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*      -->P_E_OBJECT  text
+*      -->P_E_INTERACTIVE  text
+*&---------------------------------------------------------------------*
+FORM toolbar_0100  USING P_OBJECT TYPE REF TO cl_alv_event_toolbar_set
+                                            P_INTERACTIVE.
+
+DATA : LS_TOOLBAR TYPE STB_BUTTON.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form USER_COMMAND_0100
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*      -->P_E_UCOMM  text
+*&---------------------------------------------------------------------*
+FORM user_command_0100  USING P_UCOMM.
+
+DATA : LT_ROWS TYPE LVC_T_ROW.
+
+CALL METHOD G_GRID1->GET_SELECTED_ROWS
+IMPORTING
+  ET_INDEX_ROWS = LT_ROWS.
+
+DESCRIBE TABLE LT_ROWS LINES SY-TFILL.
+
+IF SY-TFILL = 0.
+  MESSAGE S000 WITH '항목을 선택하세요.'.
+  EXIT.
+ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form DO_SAVE
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM do_save .
+  DATA : LT_TAB TYPE TABLE OF ZBBUT0030,
+              LS_TAB TYPE ZBBUT0030,
+              LT_DTAB TYPE TABLE OF ZBBUT0030,
+              LS_DTAB TYPE ZBBUT0030,
+              LS_OTAB LIKE LS_TAB,
+              LS_ERR  TYPE CHAR1.
+
+  DATA : LT_ROWS TYPE LVC_T_ROW,  " ALV 행 제어
+              LS_ROWS TYPE LVC_S_ROW,
+              LS_CELL TYPE LVC_S_STYL,
+              LT_CELL TYPE LVC_T_STYL.
+
+  CLEAR : LS_ERR, LT_CELL, LS_CELL.
+
+  LS_CELL-FIELDNAME = 'GCODE'.
+  LS_CELL-STYLE     = CL_GUI_ALV_GRID=>MC_STYLE_DISABLED.
+  INSERT LS_CELL INTO TABLE LT_CELL.
+
+  LS_CELL-FIELDNAME = 'EMSEQ'.
+  LS_CELL-STYLE     = CL_GUI_ALV_GRID=>MC_STYLE_DISABLED.
+  INSERT LS_CELL INTO TABLE LT_CELL.
+
+  LS_CELL-FIELDNAME = 'BUDYM'.
+  LS_CELL-STYLE     = CL_GUI_ALV_GRID=>MC_STYLE_DISABLED.
+  INSERT LS_CELL INTO TABLE LT_CELL.
+
+  LS_CELL-FIELDNAME = 'DEPDY'.
+  LS_CELL-STYLE     = CL_GUI_ALV_GRID=>MC_STYLE_DISABLED.
+  INSERT LS_CELL INTO TABLE LT_CELL.
+
+  LS_CELL-FIELDNAME = 'DEPPR'.
+  LS_CELL-STYLE     = CL_GUI_ALV_GRID=>MC_STYLE_DISABLED.
+  INSERT LS_CELL INTO TABLE LT_CELL.
+
+  LS_CELL-FIELDNAME = 'EMPNO'.
+  LS_CELL-STYLE     = CL_GUI_ALV_GRID=>MC_STYLE_DISABLED.
+  INSERT LS_CELL INTO TABLE LT_CELL.
+
+  LS_CELL-FIELDNAME = 'REMBUD'.
+  LS_CELL-STYLE     = CL_GUI_ALV_GRID=>MC_STYLE_DISABLED.
+  INSERT LS_CELL INTO TABLE LT_CELL.
+
+  LS_CELL-FIELDNAME = 'ACCBUD'.
+  LS_CELL-STYLE     = CL_GUI_ALV_GRID=>MC_STYLE_DISABLED.
+  INSERT LS_CELL INTO TABLE LT_CELL.
+
+*  DELETE gt_tab WHERE pcode IS INITIAL.
+
+  LOOP AT GT_OTAB INTO GS_OTAB.
+    READ TABLE GT_TAB INTO GS_TAB WITH TABLE KEY GCODE = GS_OTAB-GCODE.
+    IF SY-SUBRC = 0.
+      MOVE-CORRESPONDING : GS_TAB TO LS_TAB,
+                                                GS_OTAB TO LS_OTAB.
+      IF LS_OTAB NE LS_TAB.
+        APPEND LS_TAB TO LT_TAB.
+      ENDIF.
+      CLEAR : LS_OTAB, LS_TAB.
+    ELSE.
+      MOVE-CORRESPONDING GS_OTAB TO LS_DTAB.
+      APPEND LS_DTAB TO LT_DTAB.
+      CLEAR LS_DTAB.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT GT_TAB INTO GS_TAB.
+
+    MOVE-CORRESPONDING GS_TAB TO LS_TAB.
+    APPEND LS_TAB TO LT_TAB.
+
+    GS_TAB-CELL[] = LT_CELL[].
+    MODIFY GT_TAB FROM GS_TAB.
+
+    CLEAR LS_TAB.
+  ENDLOOP.
+
+
+  IF LT_TAB IS NOT INITIAL.
+    MODIFY ZBBUT0030 FROM TABLE LT_TAB.
+    IF SY-SUBRC NE 0.
+      LS_ERR = 'X'.
+    ENDIF.
+  ENDIF.
+
+  IF LT_DTAB IS NOT INITIAL.
+    DELETE ZBBUT0030 FROM TABLE LT_DTAB.
+    IF SY-SUBRC NE 0.
+      LS_ERR = 'X'.
+    ENDIF.
+  ENDIF.
+
+  IF LS_ERR NE 'X'.
+    MESSAGE S001.
+    COMMIT WORK.
+  ELSE.
+    MESSAGE S002 DISPLAY LIKE 'E'.
+    ROLLBACK WORK.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form DO_DELETE
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM do_delete .
+  DATA : LT_ROWS TYPE LVC_T_ROW.  " ALV 행 제어
+  DATA : LS_ROWS TYPE LVC_S_ROW.
+  DATA : LT_ROW_NO TYPE LVC_T_ROID,
+              LS_ROW_NO TYPE LVC_S_ROID.
+
+  DATA : LT_TAB LIKE GT_TAB,
+              LS_TAB LIKE GS_TAB.
+
+  CALL METHOD G_GRID1->GET_SELECTED_ROWS
+      IMPORTING
+       ET_INDEX_ROWS = LT_ROWS.
+
+  DESCRIBE TABLE LT_ROWS LINES SY-TFILL.
+
+  IF SY-TFILL EQ 0.
+    MESSAGE S000 WITH '항목을 선택하세요.' DISPLAY LIKE 'E'.
+    EXIT.
+  ELSE.
+
+    LOOP AT LT_ROWS INTO LS_ROWS.
+      READ TABLE GT_TAB INTO GS_TAB INDEX LS_ROWS-INDEX.
+      APPEND GS_TAB TO LT_TAB.
+    ENDLOOP.
+
+    LOOP AT LT_TAB INTO LS_TAB.
+      DELETE GT_TAB WHERE GCODE = LS_TAB-GCODE.
+    ENDLOOP.
+
+    PERFORM REFRESH_GRID_0100 .
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form REFRESH_GRID_0100
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM refresh_grid_0100 .
+  GS_STABLE-ROW = ABAP_TRUE. "행
+  GS_STABLE-COL = ABAP_TRUE. "열
+
+  CALL METHOD G_GRID1->REFRESH_TABLE_DISPLAY
+    EXPORTING
+      IS_STABLE      = GS_STABLE
+      I_SOFT_REFRESH = SPACE.
+
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+ENDFORM.
+
+----------------------------------------------------------------------------------
+Extracted by Direct Download Enteprise version 1.0 - E.G.Mellodew. 1998-2003 UK.
