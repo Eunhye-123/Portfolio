@@ -1,0 +1,86 @@
+*&---------------------------------------------------------------------*
+*& Report ZBBUR0020
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+
+INCLUDE zbbur0020_top                           .    " Global Data
+
+INCLUDE zbbur0020_o01                           .  " PBO-Modules
+INCLUDE zbbur0020_i01                           .  " PAI-Modules
+INCLUDE zbbur0020_f01                           .  " FORM-Routines
+
+
+INITIALIZATION.
+
+  PERFORM init.
+
+AT SELECTION-SCREEN.
+  PERFORM set_fkey.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
+  PERFORM get_filepath.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_code-low.
+  PERFORM get_gname USING p_code-low 'P_CODE-LOW'.
+
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM screen_modify.
+
+START-OF-SELECTION.
+  CASE 'X'.
+    WHEN ra1.
+      CHECK p_file IS NOT INITIAL.
+      PERFORM upload_file.
+
+    WHEN ra2.
+      PERFORM get_data.
+
+    WHEN OTHERS.
+  ENDCASE.
+
+END-OF-SELECTION.
+
+IF RA2 = 'X'.
+   CALL SCREEN 0100.
+ ENDIF.
+
+*GUI Texts
+*----------------------------------------------------------
+* T0100 --> 부서 예산 등록
+
+*Text elements
+*----------------------------------------------------------
+* 001 부서 예산 일괄배정
+* 002 개별 입력
+* 003 옵션
+* 004 처리방식
+* 005 엑셀 업로드
+* 006 개별 입력
+* 007 삭제하시겠습니까?
+* 008 저장하시겠습니까?
+
+
+*Selection texts
+*----------------------------------------------------------
+* P_BUDYM         배정년월
+* P_CODE         부서 코드
+* P_DATE         입력 일자
+* P_EMPNO         담당자
+* P_FILE         파일 경로
+* P_NAME         부서명
+* P_PRICE         입력 금액
+* P_REMBUD         잔여 예산
+* P_STATUS         상태정보
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: ZM23
+*000   & & & &
+*001   성공했습니다!
+*002   실패했습니다!
+
+----------------------------------------------------------------------------------
+Extracted by Direct Download Enteprise version 1.0 - E.G.Mellodew. 1998-2003 UK.
