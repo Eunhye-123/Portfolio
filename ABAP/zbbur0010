@@ -1,0 +1,108 @@
+*&---------------------------------------------------------------------*
+*& Report ZBBUR0010
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+
+INCLUDE ZBBUR0010_TOP                           .    " Global Data
+
+ INCLUDE ZBBUR0010_O01                           .  " PBO-Modules
+ INCLUDE ZBBUR0010_I01                           .  " PAI-Modules
+ INCLUDE ZBBUR0010_F01                           .  " FORM-Routines
+
+ INITIALIZATION.
+
+  PERFORM init.
+
+
+*   프로젝트 코드 입력 후 엔터 -> 수주금액/예산/예산 배정 일자/프로젝트 시작&종료일 들어오게
+AT SELECTION-SCREEN.    
+  PERFORM set_fkey.
+*   프로젝트 수주 금액
+  SELECT SINGLE PMONEY FROM ZBMDT0030 INTO P_PRICE WHERE PCODE = P_CODE-LOW.
+   P_PRICE = P_PRICE * 100.
+*   프로젝트 배정 예산
+   P_BUDGET = P_PRICE / 10.
+*   프로젝트 예산 배정 일자
+   SELECT SINGLE SDATE FROM ZBMDT0030 INTO P_DATE WHERE PCODE = P_CODE-LOW.
+*   프로젝트 시작 일자 / 종료 일자
+   SELECT SINGLE SDATE FROM ZBMDT0030 INTO P_SDATE WHERE PCODE = P_CODE-LOW.
+   SELECT SINGLE EDATE FROM ZBMDT0030 INTO P_EDATE WHERE PCODE = P_CODE-LOW.
+
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
+  PERFORM get_filepath.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_code-low.
+  PERFORM get_gname USING p_code-low 'P_CODE-LOW'.
+
+
+*    모듈풀에서의 PBO역할을 수행. 프로젝트 코드가 비어있지 않으면 수주 금액,예산,예산 배정 일자는 모두 출력 전용(입력 및 수정 불가)
+AT SELECTION-SCREEN OUTPUT.       
+  PERFORM screen_modify.
+***  BUDGET DISPLAY
+  LOOP AT SCREEN.
+   IF SCREEN-NAME = 'P_PRICE'
+   OR SCREEN-NAME = 'P_BUDGET'
+   OR SCREEN-NAME = 'P_DATE'.
+ SCREEN-INPUT = 0.
+ MODIFY SCREEN.
+   ENDIF.
+   ENDLOOP.
+
+START-OF-SELECTION.
+  CASE 'X'.
+    WHEN ra1.
+      CHECK p_file IS NOT INITIAL.
+      PERFORM upload_file.
+
+    WHEN ra2.
+      PERFORM get_data.
+
+    WHEN OTHERS.
+  ENDCASE.
+
+END-OF-SELECTION.
+
+IF RA2 = 'X'.
+  CALL SCREEN 0100.
+ENDIF.
+
+*GUI Texts
+*----------------------------------------------------------
+* T0100 --> 프로젝트 예산 등록
+
+*Text elements
+*----------------------------------------------------------
+* 001 프로젝트 예산 일괄배정
+* 002 개별 입력
+* 003 옵션
+* 004 처리방식
+* 005 엑셀 업로드
+* 006 개별 입력
+* 007 삭제하시겠습니까?
+* 008 저장하시겠습니까?
+
+
+*Selection texts
+*----------------------------------------------------------
+* P_BUDGET         배정 예산
+* P_CODE         프로젝트 코드
+* P_DATE         입력 일자
+* P_EMPNO         담당자
+* P_FILE         파일 경로
+* P_PRICE         수주 금액
+* RA1         엑셀 업로드
+* RA2         개별 입력
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: ZM23
+*000   & & & &
+*001   성공했습니다!
+*002   실패했습니다!
+
+----------------------------------------------------------------------------------
+Extracted by Direct Download Enteprise version 1.0 - E.G.Mellodew. 1998-2003 UK.
