@@ -1,0 +1,48 @@
+*&---------------------------------------------------------------------*
+*& Include          ZBBUR0020_I01
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  EXIT  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE exit INPUT.
+  CASE ok_code.
+    WHEN 'EXIT' OR 'CANC'.
+      LEAVE PROGRAM.
+    WHEN OTHERS.
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0100 INPUT.
+  DATA : ls_valid(1),
+              ls_refresh(1) VALUE 'X'.
+
+  "데이터 CRUD, 데이터 수정 및 삭제 가능
+CALL METHOD G_GRID1->CHECK_CHANGED_DATA
+ IMPORTING
+   E_VALID = LS_VALID
+ CHANGING
+   C_REFRESH = LS_REFRESH.
+
+
+  CASE ok_code.
+    WHEN 'BACK'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SAVE'.
+      PERFORM SAVE.
+    WHEN 'REGI'.
+      PERFORM REGISTER.
+    WHEN 'EDIT'.
+      PERFORM EDIT.
+    WHEN 'DELETE'.
+      PERFORM DELETE.
+  ENDCASE.
+ENDMODULE.
+
+----------------------------------------------------------------------------------
+Extracted by Direct Download Enteprise version 1.0 - E.G.Mellodew. 1998-2003 UK.
