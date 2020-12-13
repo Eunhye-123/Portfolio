@@ -1,0 +1,50 @@
+FUNCTION ZB_BUDGET_DEPA.     "//부서별 예산 조회 화면 데이터 RFC
+*"----------------------------------------------------------------------
+*"*"Local interface:
+*"  IMPORTING
+*"     VALUE(I_BUDYM) TYPE  ZBE_BUDYM
+*"     VALUE(I_GCODE) TYPE  ZBE_GCODE OPTIONAL
+*"     VALUE(I_EMPNO) TYPE  ZBE_EMPNO OPTIONAL
+*"     VALUE(I_MODE) TYPE  CHAR1
+*"  EXPORTING
+*"     VALUE(E_RETURN) TYPE  BAPIRETURN1
+*"  TABLES
+*"      T_DEPBU TYPE  ZBBUT0030_01
+*"----------------------------------------------------------------------
+  DATA: lt_ename TYPE TABLE OF zbmdt0010, "//사원이름
+        ls_ename TYPE zbmdt0010,
+        lt_gname TYPE TABLE OF zbmdt0020, "//부서 이름
+        ls_gname TYPE zbmdt0020.
+
+  DATA: ls_depbu LIKE LINE OF t_depbu.  "//부서 예산 테이블에 대한 WORK AREA
+
+  RANGES: LR_GCODE FOR ZBBUT0030-GCODE,
+          LR_EMPNO FOR ZBBUT0030-EMPNO.   "레인지 변수를 이용, 해당 범위 내의 데이터 추출
+
+
+  IF I_GCODE IS NOT INITIAL.
+     LR_GCODE-low = I_GCODE.
+     LR_GCODE-sign = 'I'.    "//I(Inclusive), E(Exclusive)
+     LR_GCODE-option = 'EQ'. "//EQ는 LOW값만 있어도 됨, BT는 LOW값과 HIGH값 모두 설정
+     APPEND LR_GCODE.
+  ENDIF.
+
+   IF I_EMPNO IS NOT INITIAL.
+      LR_EMPNO-low = I_EMPNO.
+      LR_EMPNO-sign = 'I'. 
+      LR_EMPNO-option = 'EQ'.
+      APPEND LR_EMPNO.
+  ENDIF.
+
+
+  SELECT * FROM ZBBUT0030 AS A
+    INNER JOIN zbmdt0010 AS B
+    ON A~EMPNO EQ B~EMPNO
+    INNER JOIN zbmdt0020 AS C
+    ON A~GCODE EQ C~GCODE
+    INTO CORRESPONDING FIELDS OF TABLE T_DEPBU
+   WHERE A~BUDYM EQ I_BUDYM
+    AND A~GCODE IN LR_GCODE
+    AND A~EMPNO IN LR_EMPNO
+    ORDER BY A~GCODE ASCENDING.
+ENDFUNCTION.
