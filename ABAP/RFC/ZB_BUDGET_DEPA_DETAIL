@@ -1,0 +1,40 @@
+FUNCTION ZB_BUDGET_DEPA_DETAIL.  "//부서별 예산 조회 화면 디테일 뷰 데이터 RFC (예산 증액에 대한 기록 데이터 필요)
+*"----------------------------------------------------------------------
+*"*"Local interface:
+*"  IMPORTING
+*"     VALUE(I_GCODE) TYPE  ZBE_GCODE OPTIONAL
+*"     VALUE(I_STATUS) TYPE  ZBE_STATUS OPTIONAL
+*"     REFERENCE(I_)
+*"  EXPORTING
+*"     VALUE(E_RETURN) TYPE  BAPIRETURN1
+*"  TABLES
+*"      T_DEPBUDDE STRUCTURE  ZBBUS0030
+*"----------------------------------------------------------------------
+
+
+SELECT A~GCODE
+       B~GNAME
+       A~TPICODE
+       A~DTDATE
+       A~RTREQ
+       A~DEPEM
+       A~TREBUD
+       A~AUEMP
+       C~ENAME
+       A~TACCDATE FROM ZBBUT018 AS A
+  LEFT OUTER JOIN  ZBMDT0020 AS B
+  ON A~GCODE = B~GCODE    "//부서코드가 같을 때 예산 증액 테이블과 부서 마스터 테이블 데이터 조인 
+  LEFT OUTER JOIN ZBMDT0010 AS C
+  ON A~AUEMP = C~EMPNO    "//사원번호가 같을 때 예산 증액 테이블과 부서 마스터 테이블, 사원 마스터 테이블 데이터 조인
+  INTO CORRESPONDING FIELDS OF TABLE T_DEPBUDDE
+  WHERE A~GCODE = I_GCODE AND
+        A~STATUS = I_STATUS.  "//입력 받은 부서코드 & 상태코드와 예산 증액 테이블의 부서코드 & 상태코드를 데이터 select 조건으로 설정 
+                                 (예산 증액 요청이 승인난 데이터만 select 되게끔)
+
+
+ SORT T_DEPBUDDE BY STATUS  
+ ASCENDING DEPEM   "//예산 증액건 중 긴급한 건을 먼저 보이게끔 sorting
+ DESCENDING DTDATE
+ DESCENDING TPICODE.
+
+ENDFUNCTION.
